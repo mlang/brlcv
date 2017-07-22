@@ -1,5 +1,6 @@
+find_package(BrlAPI REQUIRED)
 find_package(JACK REQUIRED)
 add_subdirectory(GSL)
-add_library(IO jack.cpp brlapi.cpp)
-target_link_libraries(IO PUBLIC GSL PRIVATE JACK brlapi)
+add_library(IO brlapi.cpp jack.cpp)
+target_link_libraries(IO PUBLIC GSL PRIVATE JACK BrlAPI)
 target_include_directories(IO INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

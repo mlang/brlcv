@@ -41,6 +41,7 @@ inline std::ostream &operator<<(std::ostream &Out, DisplaySize const &Size) {
 class Connection {
   class Implementation;
   std::unique_ptr<Implementation> BrlAPI;
+
 public:
   Connection();
   ~Connection();
