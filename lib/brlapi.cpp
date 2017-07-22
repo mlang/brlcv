@@ -2,17 +2,16 @@
 
 #include <brlapi.h>
 
-struct BrlAPI::Connection::Implementation {
+class BrlAPI::Connection::Implementation {
   std::unique_ptr<gsl::byte[]> HandleStorage;
-  brlapi_handle_t *handle() const {
-    return static_cast<brlapi_handle_t *>(static_cast<void *>(HandleStorage.get()));
-  }
+public:
   Implementation() : HandleStorage(new gsl::byte[brlapi_getHandleSize()]) {}
+  brlapi_handle_t *handle() const {
+    return reinterpret_cast<brlapi_handle_t *>(HandleStorage.get());
+  }
 };
 
-BrlAPI::Connection::Connection()
-: BrlAPI(std::make_unique<Implementation>())
-{
+BrlAPI::Connection::Connection() : BrlAPI(std::make_unique<Implementation>()) {
   brlapi_connectionSettings_t Settings = BRLAPI_SETTINGS_INITIALIZER;
   auto FileDescriptor = brlapi__openConnection(BrlAPI->handle(), &Settings, &Settings);
   if (FileDescriptor == -1) {
