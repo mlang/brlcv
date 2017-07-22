@@ -1,5 +1,4 @@
-#include "jack.hpp"
-#include "brlapi.hpp"
+#include <jack.hpp>
 
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics.hpp>
@@ -42,8 +41,6 @@ using std::this_thread::sleep_for;
 using namespace std::literals::chrono_literals;
 
 int main() {
-  BrlAPI::Connection Braille;
-  cout << Braille.driverName() << " (" << Braille.displaySize() << ")" << endl;
   Statistics Client;
   cout << "Rate: " << Client.sampleRate() << endl;
 
