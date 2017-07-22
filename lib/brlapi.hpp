@@ -1,5 +1,5 @@
 #include <ostream>
-#include <system_error>
+#include <sstream>
 #include <gsl/gsl>
 
 namespace BrlAPI {
@@ -38,15 +38,43 @@ inline std::ostream &operator<<(std::ostream &Out, DisplaySize const &Size) {
   return Out;
 }
 
+class Connection;
+
+class TTY {
+  Connection *Conn;
+  int Number;
+  friend class Connection;
+
+  TTY(Connection *Conn, int Number) : Conn(Conn), Number(Number) {}
+
+public:
+  ~TTY();
+
+  TTY(TTY const &) = delete;
+  TTY(TTY &&) = default;
+
+  TTY &operator=(TTY const &) = delete;
+  TTY &operator=(TTY &&) = default;
+
+  int number() const { return Number; }
+
+  void writeText(std::string);
+  void writeText(std::stringstream const &Stream) { writeText(Stream.str()); }
+};
+
 class Connection {
   class Implementation;
   std::unique_ptr<Implementation> BrlAPI;
+  friend class TTY;
 
 public:
   Connection();
   ~Connection();
+
   std::string driverName() const;
   DisplaySize displaySize() const;
+
+  TTY tty(int, bool);
 };
 
 }

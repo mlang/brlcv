@@ -11,11 +11,20 @@ public:
   }
 };
 
+BrlAPI::TTY::~TTY() {
+  brlapi__leaveTtyMode(Conn->BrlAPI->handle());
+}
+
+void BrlAPI::TTY::writeText(std::string Text) {
+  if (brlapi__writeText(Conn->BrlAPI->handle(), -1, Text.c_str()) == -1)
+    throw std::system_error(brlapi_errno, std::generic_category());
+}
+
 BrlAPI::Connection::Connection() : BrlAPI(std::make_unique<Implementation>()) {
   brlapi_connectionSettings_t Settings = BRLAPI_SETTINGS_INITIALIZER;
   auto FileDescriptor = brlapi__openConnection(BrlAPI->handle(), &Settings, &Settings);
   if (FileDescriptor == -1) {
-    throw std::system_error(errno, std::generic_category());
+    throw std::system_error(brlapi_errno, std::generic_category());
   }
 }
 
@@ -33,5 +42,11 @@ BrlAPI::DisplaySize BrlAPI::Connection::displaySize() const {
   DisplaySize Size;
   brlapi__getDisplaySize(BrlAPI->handle(), &Size.X, &Size.Y);
   return Size;
+}
+
+BrlAPI::TTY BrlAPI::Connection::tty(int TTY, bool Raw) {
+  auto Number = brlapi__enterTtyMode(BrlAPI->handle(), TTY, "");
+  if (Number == -1) throw std::system_error(brlapi_errno, std::generic_category());
+  return { this, Number };
 }
 
