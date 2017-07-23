@@ -1,3 +1,6 @@
+#if !defined(BrlCV_JACK_HPP)
+#define BrlCV_JACK_HPP
+
 #include <memory>
 #include <string>
 
@@ -15,8 +18,8 @@ protected:
 
 public:
   ~Port();
-  Port(Port &&);
-  Port &operator=(Port &&);
+  Port(Port &&) noexcept;
+  Port &operator=(Port &&) noexcept;
   Port(const Port &) = delete;
   Port &operator=(const Port &) = delete;
 };
@@ -43,9 +46,9 @@ class Client {
   friend class Port;
 
 public:
-  Client(std::string Name);
-  Client(Client &&);
-  Client &operator=(Client &&);
+  explicit Client(std::string Name);
+  Client(Client &&) noexcept;
+  Client &operator=(Client &&) noexcept;
   Client(const Client &) = delete;
   Client &operator=(const Client &) = delete;
   virtual ~Client();
@@ -62,4 +65,5 @@ public:
   virtual int process(std::uint32_t nframes) = 0;
 };
 
-}
+} // namespace JACK
+#endif // BrlCV_JACK_HPP

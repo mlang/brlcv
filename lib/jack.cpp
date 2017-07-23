@@ -7,7 +7,7 @@
 namespace std {
   template<> struct is_error_code_enum<JackStatus>:true_type{};
   template<> struct is_error_condition_enum<JackStatus>:true_type{};
-}
+} // namespace std
 
 namespace {
   
@@ -17,23 +17,29 @@ struct JACKErrorCategory : std::error_category {
   equivalent(int Value, const std::error_condition& Condition) const noexcept override
   {
     return Condition.category() == *this &&
-           Value & Condition.value() == Condition.value();
+           (Value & Condition.value()) == Condition.value();
   }
   std::string message(int ev) const override {
     std::string msg;
-    if (ev & JackFailure) {
+    if ((ev & JackFailure) == JackFailure) {
       msg += "Overall operation failed";
     }
-    if (ev & JackInvalidOption) {
-      if (!msg.empty()) msg += ", ";
+    if ((ev & JackInvalidOption) == JackInvalidOption) {
+      if (!msg.empty()) {
+	msg += ", ";
+      }
       msg += "The operation contained an invalid or unsupported option";
     }
-    if (ev & JackNameNotUnique) {
-      if (!msg.empty()) msg += ", ";
+    if ((ev & JackNameNotUnique) == JackNameNotUnique) {
+      if (!msg.empty()) {
+	msg += ", ";
+      }
       msg += "The desired client name was not unique";
     }
-    if (ev & JackServerFailed) {
-      if (!msg.empty()) msg += ", ";
+    if ((ev & JackServerFailed) == JackServerFailed) {
+      if (!msg.empty()) {
+	msg += ", ";
+      }
       msg += "Unable to connect to the JACK server";
     }
     if (msg.empty()) {
@@ -46,7 +52,7 @@ struct JACKErrorCategory : std::error_category {
 
 const JACKErrorCategory JACKCategory {};
 
-}
+} // namespace
 
 std::error_code make_error_code(JackStatus e) {
   return { static_cast<int>(e), JACKCategory };
@@ -59,15 +65,23 @@ std::error_condition make_error_condition(JackStatus e) {
 struct JACK::Client::Implementation {
   jack_client_t *const Client;
     
-  Implementation(std::string Name)
+  explicit Implementation(std::string Name)
   : Client([&] {
       jack_status_t Status;
       auto Handle = jack_client_open(Name.c_str(), JackNoStartServer, &Status);
-      if (!Handle) throw std::system_error(make_error_code(Status));
+      if (Handle == nullptr) {
+	throw std::system_error(make_error_code(Status));
+      }
       return Handle;
     }())
   {}
   ~Implementation() { jack_client_close(Client); }
+
+  Implementation(Implementation const &) = delete;
+  Implementation(Implementation &&) = delete;
+
+  Implementation &operator=(Implementation const &) = delete;
+  Implementation &operator=(Implementation &&) = delete;
 };
 
 struct JACK::Port::Implementation {
@@ -77,7 +91,11 @@ struct JACK::Port::Implementation {
   Implementation(JACK::Client *Client, std::string Name, std::string Type, JackPortFlags Flags)
   : Client(Client)
   , Port(jack_port_register(Client->JACK->Client, Name.c_str(), Type.c_str(), Flags, 0))
-  { if (!Port) throw std::runtime_error("Failed to register port"); }
+  {
+    if (Port == nullptr) {
+      throw std::runtime_error("Failed to register port");
+    }
+  }
   ~Implementation() { jack_port_unregister(Client->JACK->Client, Port); }
 };
 
@@ -87,8 +105,8 @@ Port::Port(Client *C, std::string N, std::string T, bool IsInput)
 : JACK(std::make_unique<Implementation>(C, N, T, static_cast<JackPortFlags>(IsInput ? JackPortIsInput : JackPortIsOutput)))
 {}
 
-Port::Port(Port &&) = default;
-Port &Port::operator=(Port &&) = default;
+Port::Port(Port &&) noexcept = default;
+Port &Port::operator=(Port &&) noexcept = default;
 
 Port::~Port() = default;
 
@@ -110,7 +128,7 @@ AudioOut::AudioOut(JACK::Client *Client, std::string Name)
 gsl::span<float> AudioOut::buffer(std::int32_t FrameCount) {
   return {
     static_cast<float *>(jack_port_get_buffer(JACK->Port, FrameCount)),
-   FrameCount
+    FrameCount
   };
 }
 
@@ -125,8 +143,8 @@ Client::Client(std::string Name)
   jack_set_process_callback(JACK->Client, &JACK::process, this);
 }
 
-Client::Client(Client &&) = default;
-Client &Client::operator=(Client &&) = default;
+Client::Client(Client &&) noexcept = default;
+Client &Client::operator=(Client &&) noexcept = default;
 
 Client::~Client() = default;
 
@@ -155,7 +173,9 @@ void Client::activate() {
 
 void Client::deactivate() {
   auto Status = jack_deactivate(JACK->Client);
-  if (Status) throw std::system_error(Status, std::generic_category());
+  if (Status != 0) {
+    throw std::system_error(Status, std::generic_category());
+  }
 }
 
-}
+} // namespace JACK

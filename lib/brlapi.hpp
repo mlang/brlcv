@@ -1,3 +1,6 @@
+#if !defined(BrlCV_BrlAPI_HPP)
+#define BrlCV_BrlAPI_HPP
+
 #include <ostream>
 #include <sstream>
 #include <gsl/gsl>
@@ -9,34 +12,13 @@ struct DisplaySize {
   unsigned int Y;
 };
 
-inline bool operator==(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X == Rhs.X && Lhs.Y == Rhs.Y;
-}
-
-inline bool operator!=(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X != Rhs.X || Lhs.Y != Rhs.Y;
-}
-
-inline bool operator>(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X * Lhs.Y > Rhs.X * Rhs.Y;
-}
-
-inline bool operator>=(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X * Lhs.Y >= Rhs.X * Rhs.Y;
-}
-
-inline bool operator<=(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X * Lhs.Y <= Rhs.X * Rhs.Y;
-}
-
-inline bool operator<(DisplaySize const &Lhs, DisplaySize const &Rhs) {
-  return Lhs.X * Lhs.Y < Rhs.X * Rhs.Y;
-}
-
-inline std::ostream &operator<<(std::ostream &Out, DisplaySize const &Size) {
-  Out << Size.X << 'x' << Size.Y;
-  return Out;
-}
+bool operator==(DisplaySize const &, DisplaySize const &);
+bool operator!=(DisplaySize const &, DisplaySize const &);
+bool operator>(DisplaySize const &, DisplaySize const &);
+bool operator>=(DisplaySize const &, DisplaySize const &);
+bool operator<=(DisplaySize const &, DisplaySize const &);
+bool operator<(DisplaySize const &, DisplaySize const &);
+std::ostream &operator<<(std::ostream &Out, DisplaySize const &);
 
 class Connection;
 
@@ -51,15 +33,17 @@ public:
   ~TTY();
 
   TTY(TTY const &) = delete;
-  TTY(TTY &&) = default;
+  TTY(TTY &&) noexcept = default;
 
   TTY &operator=(TTY const &) = delete;
-  TTY &operator=(TTY &&) = default;
+  TTY &operator=(TTY &&) noexcept = default;
 
-  int number() const { return Number; }
+  int number() const noexcept { return Number; }
 
   void writeText(std::string);
   void writeText(std::stringstream const &Stream) { writeText(Stream.str()); }
+
+  std::uint64_t readKey() const;
 };
 
 class Connection {
@@ -71,10 +55,18 @@ public:
   Connection();
   ~Connection();
 
+  Connection(Connection const &) = delete;
+  Connection &operator=(Connection const &) = delete;
+
+  Connection(Connection &&) noexcept;
+  Connection &operator=(Connection &&) noexcept;
+
   std::string driverName() const;
   DisplaySize displaySize() const;
 
   TTY tty(int, bool);
 };
 
-}
+} // namespace BrlAPI
+
+#endif // BrlCV_BrlAPI_HPP
