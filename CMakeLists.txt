@@ -12,3 +12,6 @@ add_executable(stats stats.cpp)
 target_link_libraries(stats IO Boost::boost)
 add_executable(brltest brltest.cpp)
 target_link_libraries(brltest IO)
+add_executable(edge edge.cpp)
+target_link_libraries(edge IO)
+

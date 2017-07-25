@@ -18,7 +18,7 @@ bool operator>(DisplaySize const &, DisplaySize const &);
 bool operator>=(DisplaySize const &, DisplaySize const &);
 bool operator<=(DisplaySize const &, DisplaySize const &);
 bool operator<(DisplaySize const &, DisplaySize const &);
-std::ostream &operator<<(std::ostream &Out, DisplaySize const &);
+std::ostream &operator<<(std::ostream &, DisplaySize const &);
 
 class Connection;
 
