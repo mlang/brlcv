@@ -2,30 +2,12 @@
 #include <thread>
 
 #include <jack.hpp>
-
-// https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average
-template<typename T>
-class ExponentiallyWeightedMovingAverage {
-  T Average;
-  T const Weight;
-
-public:
-  explicit ExponentiallyWeightedMovingAverage(T Weight, T Initial = T(0))
-  : Average(Initial), Weight(Weight) {}
-
-  ExponentiallyWeightedMovingAverage &operator()(T Value) {
-    Average = Weight * Value + (T(1) - Weight) * Average;
-
-    return *this;
-  }
-
-  operator T() const noexcept { return Average; }
-};
+#include <dsp.hpp>
 
 class EdgeDetect : public JACK::Client {
   JACK::AudioIn In;
   decltype(In)::value_type PreviousDifference = 0;
-  ExponentiallyWeightedMovingAverage<decltype(In)::value_type>
+  BrlCV::ExponentiallyWeightedMovingAverage<decltype(In)::value_type>
   FastAverage, SlowAverage;
   
   std::size_t PulseWidth = 0;
@@ -66,4 +48,3 @@ int main() {
 
   return EXIT_SUCCESS;
 }
-

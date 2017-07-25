@@ -29,7 +29,9 @@ class AudioIn : public Port {
   AudioIn(Client *, std::string Name);
       
 public:
-  gsl::span<float> buffer(std::int32_t Frames);
+  using value_type = float;
+
+  gsl::span<value_type> buffer(std::int32_t Frames);
 };
 
 class AudioOut : public Port {
@@ -37,7 +39,9 @@ class AudioOut : public Port {
   AudioOut(Client *, std::string Name);
 
 public:
-  gsl::span<float> buffer(std::int32_t Frames);
+  using value_type = float;
+
+  gsl::span<value_type> buffer(std::int32_t Frames);
 };
 
 class Client {
