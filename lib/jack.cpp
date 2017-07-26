@@ -1,6 +1,7 @@
 #include "jack.hpp"
 #include <cstring>
 #include <jack/jack.h>
+#include <jack/midiport.h>
 #include <stdexcept>
 #include <system_error>
 
@@ -132,6 +133,25 @@ gsl::span<float> AudioOut::buffer(std::int32_t FrameCount) {
   };
 }
 
+void MIDIBuffer::clear() {
+  jack_midi_clear_buffer(Buffer);
+}
+
+gsl::span<gsl::byte> MIDIBuffer::reserve(std::uint32_t FrameOffset, std::uint32_t Size) {
+  return {
+    reinterpret_cast<gsl::byte *>(jack_midi_event_reserve(Buffer, FrameOffset, Size)),
+    Size
+  };
+}
+
+MIDIOut::MIDIOut(JACK::Client *Client, std::string Name)
+: Port(Client, std::move(Name), JACK_DEFAULT_MIDI_TYPE, false)
+{}
+
+MIDIBuffer MIDIOut::buffer(std::int32_t FrameCount) {
+  return MIDIBuffer(jack_port_get_buffer(JACK->Port, FrameCount));
+}
+
 extern "C" int process(jack_nframes_t nframes, void *instance)
 {
   return static_cast<Client *>(instance)->process(nframes);
@@ -161,6 +181,10 @@ AudioIn Client::createAudioIn(std::string Name) {
 }
 
 AudioOut Client::createAudioOut(std::string Name) {
+  return { this, std::move(Name) };
+}
+
+MIDIOut Client::createMIDIOut(std::string Name) {
   return { this, std::move(Name) };
 }
 

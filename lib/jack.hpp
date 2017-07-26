@@ -44,6 +44,33 @@ public:
   gsl::span<value_type> buffer(std::int32_t Frames);
 };
 
+class MIDIBuffer {
+  void *Buffer;
+  friend class MIDIOut;
+  
+  explicit MIDIBuffer(void *Buffer) : Buffer(Buffer) {
+    Expects(Buffer != nullptr);
+  }
+
+public:
+  void clear();
+  gsl::span<gsl::byte> reserve(std::uint32_t FrameOffset, std::uint32_t Size);
+  template<std::uint32_t Size>
+  gsl::span<gsl::byte, Size> reserve(std::uint32_t FrameOffset) {
+    return reserve(FrameOffset, Size);
+  }
+};
+
+class MIDIOut : public Port {
+  friend class Client;
+  MIDIOut(Client *, std::string Name);
+      
+public:
+  using value_type = gsl::byte;
+        
+  MIDIBuffer buffer(std::int32_t FrameCount);
+};
+
 class Client {
   struct Implementation;
   std::unique_ptr<Implementation> JACK;
@@ -62,6 +89,7 @@ public:
 
   AudioIn createAudioIn(std::string Name);
   AudioOut createAudioOut(std::string Name);
+  MIDIOut createMIDIOut(std::string Name);
 
   void activate();
   void deactivate();

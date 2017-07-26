@@ -14,13 +14,15 @@ public:
   : Average(Initial), Weight(Weight), OneMinusWeight(T(1) - Weight) {}
 
   ExponentiallyWeightedMovingAverage &operator()(T Value) {
-    Average = Weight * Value + OneMinusWeight * Average;
+    Average = Value * Weight + Average * OneMinusWeight;
 
     return *this;
   }
 
   operator T() const noexcept { return Average; }
 };
+
+template<typename T> using EWMA = ExponentiallyWeightedMovingAverage<T>;
 
 } // namespace BrlCV
 

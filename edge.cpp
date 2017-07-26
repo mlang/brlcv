@@ -5,31 +5,38 @@
 #include <dsp.hpp>
 
 class EdgeDetect : public JACK::Client {
-  JACK::AudioIn In;
-  decltype(In)::value_type PreviousDifference = 0;
-  BrlCV::ExponentiallyWeightedMovingAverage<decltype(In)::value_type>
-  FastAverage, SlowAverage;
-  
-  std::size_t PulseWidth = 0;
+  JACK::AudioIn CVIn;
+  JACK::MIDIOut MIDIOut;
+  BrlCV::EWMA<decltype(CVIn)::value_type> FastAverage, SlowAverage;
+  decltype(CVIn)::value_type PreviousDifference = 0;
+  std::size_t FramesPerPulse = 0;
   float const Threshold;
 
 public:
   EdgeDetect(float Threshold = 0.2) : JACK::Client("EdgeDetect")
-  , In(createAudioIn("In")), FastAverage(0.25), SlowAverage(0.0625)
-  , Threshold(Threshold) {}
+  , CVIn(createAudioIn("In"))
+  , MIDIOut(createMIDIOut("Out"))
+  , FastAverage(0.25), SlowAverage(0.0625)
+  , Threshold(Threshold)
+  {
+    Expects(Threshold > 0);
+  }
 
   int process(std::uint32_t FrameCount) override {
+    auto MIDIBuffer = MIDIOut.buffer(FrameCount);
     std::size_t Frame = 0;
 
-    for (auto Sample : In.buffer(FrameCount)) {
+    MIDIBuffer.clear();
+    for (auto Sample : CVIn.buffer(FrameCount)) {
       auto Difference = FastAverage(Sample) - SlowAverage(Sample);
 
       if (PreviousDifference < Threshold && Difference > Threshold) {
-        std::cout << "Positive Edge (" << Frame << ", " << PulseWidth << ")" << "\n";
-        PulseWidth = 0;
+        MIDIBuffer.reserve<1>(Frame)[0] = gsl::byte(0XFB);
+        std::cout << "Positive Edge (" << Frame << ", " << FramesPerPulse << ")" << "\n";
+        FramesPerPulse = 0;
       }
       PreviousDifference = Difference;
-      Frame += 1; PulseWidth += 1;
+      Frame += 1; FramesPerPulse += 1;
     }
 
     return 0;
