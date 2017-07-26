@@ -149,7 +149,7 @@ MIDIOut::MIDIOut(JACK::Client *Client, std::string Name)
 {}
 
 MIDIBuffer MIDIOut::buffer(std::int32_t FrameCount) {
-  return MIDIBuffer(jack_port_get_buffer(JACK->Port, FrameCount));
+  return { jack_port_get_buffer(JACK->Port, FrameCount), FrameCount };
 }
 
 extern "C" int process(jack_nframes_t nframes, void *instance)

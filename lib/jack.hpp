@@ -6,6 +6,8 @@
 
 #include <gsl/gsl>
 
+#include <midi.hpp>
+
 namespace JACK {
 
 class Client;
@@ -46,18 +48,37 @@ public:
 
 class MIDIBuffer {
   void *Buffer;
+  std::uint32_t const Frames;
   friend class MIDIOut;
   
-  explicit MIDIBuffer(void *Buffer) : Buffer(Buffer) {
+  MIDIBuffer(void *Buffer, std::uint32_t FrameCount) : Buffer(Buffer), Frames(FrameCount) {
     Expects(Buffer != nullptr);
   }
 
 public:
+  class Index {
+    MIDIBuffer &Buffer;
+    std::uint32_t Offset;
+    friend class MIDIBuffer;
+
+    Index(MIDIBuffer &Buffer, std::uint32_t Offset)
+    : Buffer(Buffer), Offset(Offset) {}
+  public:
+    Index &operator=(MIDI::SystemRealTimeMessage Message) {
+      Buffer.reserve<1>(Offset)[0] = static_cast<gsl::byte>(Message);
+
+      return *this;
+    }
+  };
   void clear();
   gsl::span<gsl::byte> reserve(std::uint32_t FrameOffset, std::uint32_t Size);
   template<std::uint32_t Size>
   gsl::span<gsl::byte, Size> reserve(std::uint32_t FrameOffset) {
     return reserve(FrameOffset, Size);
+  }
+  Index operator[](std::uint32_t FrameOffset) {
+    Ensures(FrameOffset < Frames);
+    return { *this, FrameOffset };
   }
 };
 

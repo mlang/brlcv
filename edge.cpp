@@ -18,9 +18,7 @@ public:
   , MIDIOut(createMIDIOut("Out"))
   , FastAverage(0.25), SlowAverage(0.0625)
   , Threshold(Threshold)
-  {
-    Expects(Threshold > 0);
-  }
+  { Expects(Threshold > 0); }
 
   int process(std::uint32_t FrameCount) override {
     auto MIDIBuffer = MIDIOut.buffer(FrameCount);
@@ -31,7 +29,7 @@ public:
       auto Difference = FastAverage(Sample) - SlowAverage(Sample);
 
       if (PreviousDifference < Threshold && Difference > Threshold) {
-        MIDIBuffer.reserve<1>(Frame)[0] = gsl::byte(0XFB);
+        MIDIBuffer[Frame] = MIDI::SystemRealTimeMessage::Clock;
         std::cout << "Positive Edge (" << Frame << ", " << FramesPerPulse << ")" << "\n";
         FramesPerPulse = 0;
       }
