@@ -1,6 +1,9 @@
 #if !defined(BrlCV_DSP_HPP)
 #define BrlCV_DSP_HPP
 
+#include <bitset>
+#include <gsl/gsl>
+
 namespace BrlCV {
 
 // https://en.wikipedia.org/wiki/Moving_average#Exponential_moving_average
@@ -23,6 +26,36 @@ public:
 };
 
 template<typename T> using EWMA = ExponentiallyWeightedMovingAverage<T>;
+
+template<std::size_t N>
+class FairSegmentation {
+  std::size_t SegmentSize;
+  std::bitset<N> Set;
+
+public:
+  FairSegmentation() : SegmentSize(0), Set(0) {}
+  FairSegmentation(std::size_t Size) : SegmentSize(Size / N), Set(0) {
+    auto const R = Size % N;
+    for (auto I = 0; I < R; ++I) Set.set(N*I/R);
+    Ensures(Set.count() == R);
+  }
+
+  FairSegmentation &operator=(std::size_t Size) {
+    SegmentSize = Size / N;
+    Set.reset();
+    auto const R = Size % N;
+    for (auto I = 0; I < R; ++I) Set.set(N*I/R);
+    Ensures(Set.count() == R);
+  }
+
+  constexpr bool empty() const { return N == 0; }
+  constexpr std::size_t size() const { return N; }
+  
+  std::size_t operator[](std::size_t Position) const {
+    Expects(Position < N);
+    return SegmentSize + Set.test(Position);
+  }
+};
 
 } // namespace BrlCV
 

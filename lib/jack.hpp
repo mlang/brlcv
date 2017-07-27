@@ -77,7 +77,7 @@ public:
     return reserve(FrameOffset, Size);
   }
   Index operator[](std::uint32_t FrameOffset) {
-    Ensures(FrameOffset < Frames);
+    Expects(FrameOffset < Frames);
     return { *this, FrameOffset };
   }
 };
