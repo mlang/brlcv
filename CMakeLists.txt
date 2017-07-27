@@ -13,5 +13,4 @@ target_link_libraries(stats IO Boost::boost)
 add_executable(brltest brltest.cpp)
 target_link_libraries(brltest IO)
 add_executable(cv2midiclock cv2midiclock.cpp)
-target_link_libraries(cv2midiclock IO)
-
+target_link_libraries(cv2midiclock IO Boost::boost)

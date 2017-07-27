@@ -1,8 +1,13 @@
 #include <chrono>
 #include <thread>
 
+
+#include <boost/lockfree/spsc_queue.hpp>
+
 #include <jack.hpp>
 #include <dsp.hpp>
+
+boost::lockfree::spsc_queue<std::size_t, boost::lockfree::capacity<8>> FPP;
 
 class EdgeDetect : public JACK::Client {
   JACK::AudioIn CVIn;
@@ -35,6 +40,7 @@ class EdgeDetect : public JACK::Client {
         PulseOffset = Frame;
         FramesPerPulse = FramesSinceLastPulse;
         FramesSinceLastPulse = 0;
+        FPP.push(FramesPerPulse);
       }
       PreviousDifference = Difference;
       Frame += 1; FramesSinceLastPulse += 1;
@@ -65,10 +71,18 @@ using namespace std::literals::chrono_literals;
 
 int main() {
   EdgeDetect App;
-
+  std::string const Chars = "\\|/-";
+  unsigned int CurrentChar = 0;
   App.activate();
   while (true) {
-    std::this_thread::sleep_for(10ms);
+    std::size_t FramesPerPulse;
+    while (FPP.pop(FramesPerPulse)) {
+      auto BPM = static_cast<float>(App.sampleRate()) / FramesPerPulse * 60;
+      std::cout << BPM << " BPM " << Chars[CurrentChar++] << "        \r";
+      std::flush(std::cout);
+      if (CurrentChar == Chars.size()) CurrentChar = 0;
+    }
+    std::this_thread::sleep_for(5ms);
   }
 
   return EXIT_SUCCESS;
