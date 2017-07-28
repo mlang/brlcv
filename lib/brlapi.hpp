@@ -22,6 +22,22 @@ std::ostream &operator<<(std::ostream &, DisplaySize const &);
 
 class Connection;
 
+class KeyCode {
+  std::uint8_t Group, Number;
+  bool Press;
+  friend class TTY;
+
+  KeyCode(std::uint64_t Code)
+  : Group((Code >> 8) & 0b11111111)
+  , Number(Code & 0b11111111)
+  , Press(Code >> 63) {}
+
+public:
+  auto group() const noexcept { return Group; }
+  auto number() const noexcept { return Number; }
+  auto press() const noexcept { return Press; }
+};
+
 class TTY {
   Connection *Conn;
   int Number;
@@ -43,7 +59,8 @@ public:
   void writeText(std::string);
   void writeText(std::stringstream const &Stream) { writeText(Stream.str()); }
 
-  std::uint64_t readKey() const;
+  KeyCode readKey() const;
+  bool readKey(KeyCode &) const;
 };
 
 class Connection {

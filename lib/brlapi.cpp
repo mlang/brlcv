@@ -54,12 +54,24 @@ void BrlAPI::TTY::writeText(std::string Text) {
   }
 }
 
-std::uint64_t BrlAPI::TTY::readKey() const {
+BrlAPI::KeyCode BrlAPI::TTY::readKey() const {
   brlapi_keyCode_t Key;
   if (brlapi__readKey(Conn->BrlAPI->handle(), 1, &Key) == -1) {
     throw std::system_error(brlapi_errno, std::generic_category());
   }
-  return Key;
+  return { Key };
+}
+
+bool BrlAPI::TTY::readKey(KeyCode &KeyCode) const {
+  brlapi_keyCode_t Key;
+  auto Result = brlapi__readKey(Conn->BrlAPI->handle(), 0, &Key);
+  if (Result == -1) {
+    throw std::system_error(brlapi_errno, std::generic_category());
+  }
+  if (Result == 1) {
+    KeyCode = BrlAPI::KeyCode(Key);
+  }
+  return Result == 1;
 }
 
 BrlAPI::Connection::Connection() : BrlAPI(std::make_unique<Implementation>()) {
@@ -94,6 +106,13 @@ BrlAPI::TTY BrlAPI::Connection::tty(int TTY, bool Raw) {
   if (Number == -1) {
     throw std::system_error(brlapi_errno, std::generic_category());
   }
+  brlapi_range_t Ranges[] = {
+    { 0, std::numeric_limits<brlapi_keyCode_t>::max() }
+  };
+  brlapi__acceptKeyRanges(
+    BrlAPI->handle(),
+    Ranges, std::distance(std::begin(Ranges), std::end(Ranges))
+  );
   return { this, Number };
 }
 

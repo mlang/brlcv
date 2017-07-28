@@ -16,6 +16,9 @@ int main() {
     std::stringstream Text;
     Text << "You are on tty" << TTY.number();
     TTY.writeText(Text);
+    auto KeyCode = TTY.readKey();
+    Text << " and pressed key " << KeyCode.group() << " " << KeyCode.number() << " " << KeyCode.press();
+    TTY.writeText(Text);
     std::this_thread::sleep_for(5s);
   }
 }
