@@ -65,15 +65,15 @@ public:
     : Buffer(Buffer), Offset(Offset) {}
   public:
     Index &operator=(MIDI::SystemRealTimeMessage Message) {
-      Buffer.reserve<1>(Offset)[0] = static_cast<gsl::byte>(Message);
+      Buffer.reserve<1>(Offset)[0] = static_cast<std::byte>(Message);
 
       return *this;
     }
   };
   void clear();
-  gsl::span<gsl::byte> reserve(std::uint32_t FrameOffset, std::uint32_t Size);
+  gsl::span<std::byte> reserve(std::uint32_t FrameOffset, std::uint32_t Size);
   template<std::uint32_t Size>
-  gsl::span<gsl::byte, Size> reserve(std::uint32_t FrameOffset) {
+  gsl::span<std::byte, Size> reserve(std::uint32_t FrameOffset) {
     return reserve(FrameOffset, Size);
   }
   Index operator[](std::uint32_t FrameOffset) {
@@ -87,9 +87,9 @@ class MIDIOut : public Port {
   MIDIOut(Client *, std::string Name);
       
 public:
-  using value_type = gsl::byte;
+  using value_type = std::byte;
         
-  MIDIBuffer buffer(std::int32_t FrameCount);
+  MIDIBuffer buffer(std::uint32_t FrameCount);
 };
 
 class Client {

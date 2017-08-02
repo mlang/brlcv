@@ -3,7 +3,9 @@
 
 #include <ostream>
 #include <sstream>
+#include <variant>
 #include <gsl/gsl>
+#include <boost/serialization/strong_typedef.hpp>
 
 namespace BrlAPI {
 
@@ -25,25 +27,38 @@ class Connection;
 class KeyCode {
   std::uint8_t Group, Number;
   bool Press;
-  friend class TTY;
 
-  KeyCode(std::uint64_t Code)
+public:
+  KeyCode(std::uint8_t Group, std::uint8_t Number, bool Press) noexcept
+  : Group(Group), Number(Number), Press(Press) {}
+  KeyCode(std::uint64_t Code) noexcept
   : Group((Code >> 8) & 0b11111111)
   , Number(Code & 0b11111111)
   , Press(Code >> 63) {}
 
-public:
   auto group() const noexcept { return Group; }
   auto number() const noexcept { return Number; }
   auto press() const noexcept { return Press; }
 };
 
+namespace Driver {
+class HandyTech {
+public:
+  enum class NavigationKey {
+    B1, B2, B3, B4, B5, B6, B7, B8, LeftSpace, RightSpace
+  };
+  BOOST_STRONG_TYPEDEF(std::uint8_t, RoutingKey)
+  using Key = std::variant<NavigationKey, RoutingKey>;
+  static Key fromKeyCode(KeyCode const &);
+};
+} // namespace Driver
+
 class TTY {
-  Connection *Conn;
+  Connection &Conn;
   int Number;
   friend class Connection;
 
-  TTY(Connection *Conn, int Number) : Conn(Conn), Number(Number) {}
+  TTY(Connection &Conn, int Number) : Conn(Conn), Number(Number) {}
 
 public:
   ~TTY();
@@ -82,6 +97,8 @@ public:
   DisplaySize displaySize() const;
 
   TTY tty(int, bool);
+
+  using Driver = std::variant<Driver::HandyTech>;
 };
 
 } // namespace BrlAPI

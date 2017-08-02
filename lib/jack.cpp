@@ -137,10 +137,13 @@ void MIDIBuffer::clear() {
   jack_midi_clear_buffer(Buffer);
 }
 
-gsl::span<gsl::byte> MIDIBuffer::reserve(std::uint32_t FrameOffset, std::uint32_t Size) {
+gsl::span<std::byte> MIDIBuffer::reserve (
+  std::uint32_t FrameOffset, std::uint32_t Size
+) {
   return {
-    reinterpret_cast<gsl::byte *>(jack_midi_event_reserve(Buffer, FrameOffset, Size)),
-    Size
+    reinterpret_cast<std::byte *>(
+      jack_midi_event_reserve(Buffer, FrameOffset, Size)
+    ), Size
   };
 }
 
@@ -148,7 +151,7 @@ MIDIOut::MIDIOut(JACK::Client *Client, std::string Name)
 : Port(Client, std::move(Name), JACK_DEFAULT_MIDI_TYPE, false)
 {}
 
-MIDIBuffer MIDIOut::buffer(std::int32_t FrameCount) {
+MIDIBuffer MIDIOut::buffer(std::uint32_t FrameCount) {
   return { jack_port_get_buffer(JACK->Port, FrameCount), FrameCount };
 }
 

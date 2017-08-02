@@ -1,7 +1,6 @@
 #include <chrono>
 #include <thread>
 
-
 #include <boost/lockfree/spsc_queue.hpp>
 
 #include <jack.hpp>

@@ -18,7 +18,9 @@ int main() {
     TTY.writeText(Text);
     auto KeyCode = TTY.readKey();
     Text << " and pressed key " << KeyCode.group() << " " << KeyCode.number() << " " << KeyCode.press();
+    auto Key = BrlAPI::Driver::HandyTech::fromKeyCode(KeyCode);
     TTY.writeText(Text);
+
     std::this_thread::sleep_for(5s);
   }
 }
