@@ -4,7 +4,11 @@
 #include <ostream>
 #include <sstream>
 #include <variant>
+
+#include <experimental/propagate_const>
+
 #include <gsl/gsl>
+
 #include <boost/serialization/strong_typedef.hpp>
 
 namespace BrlAPI {
@@ -31,7 +35,7 @@ class KeyCode {
 public:
   KeyCode(std::uint8_t Group, std::uint8_t Number, bool Press) noexcept
   : Group(Group), Number(Number), Press(Press) {}
-  KeyCode(std::uint64_t Code) noexcept
+  explicit KeyCode(std::uint64_t Code) noexcept
   : Group((Code >> 8) & 0b11111111)
   , Number(Code & 0b11111111)
   , Press(Code >> 63) {}
@@ -42,15 +46,17 @@ public:
 };
 
 namespace Driver {
+
 class HandyTech {
 public:
-  enum class NavigationKey {
+  enum class NavigationKey : std::uint8_t {
     B1, B2, B3, B4, B5, B6, B7, B8, LeftSpace, RightSpace
   };
   BOOST_STRONG_TYPEDEF(std::uint8_t, RoutingKey)
   using Key = std::variant<NavigationKey, RoutingKey>;
   static Key fromKeyCode(KeyCode const &);
 };
+
 } // namespace Driver
 
 class TTY {
@@ -80,7 +86,7 @@ public:
 
 class Connection {
   class Implementation;
-  std::unique_ptr<Implementation> BrlAPI;
+  std::experimental::propagate_const<std::unique_ptr<Implementation>> BrlAPI;
   friend class TTY;
 
 public:

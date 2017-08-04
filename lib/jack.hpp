@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+#include <experimental/propagate_const>
+
 #include <gsl/gsl>
 
 #include <midi.hpp>
@@ -15,7 +17,7 @@ class Client;
 class Port {
 protected:
   struct Implementation;
-  std::unique_ptr<Implementation> JACK;
+  std::experimental::propagate_const<std::unique_ptr<Implementation>> JACK;
   Port(Client *, std::string Name, std::string Type, bool IsInput);
 
 public:
@@ -94,7 +96,7 @@ public:
 
 class Client {
   struct Implementation;
-  std::unique_ptr<Implementation> JACK;
+  std::experimental::propagate_const<std::unique_ptr<Implementation>> JACK;
   friend class Port;
 
 public:

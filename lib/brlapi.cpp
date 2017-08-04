@@ -119,7 +119,7 @@ BrlAPI::KeyCode BrlAPI::TTY::readKey() const {
   if (brlapi__readKey(Conn.BrlAPI->handle(), 1, &Key) == -1) {
     throwSystemError();
   }
-  return { Key };
+  return KeyCode(Key);
 }
 
 bool BrlAPI::TTY::readKey(KeyCode &KeyCode) const {
