@@ -86,23 +86,23 @@ struct JACK::Client::Implementation {
 };
 
 struct JACK::Port::Implementation {
-  JACK::Client *Client;
+  JACK::Client &Client;
   jack_port_t * const Port;
   
-  Implementation(JACK::Client *Client, std::string Name, std::string Type, JackPortFlags Flags)
+  Implementation(JACK::Client &Client, std::string_view Name, std::string_view Type, JackPortFlags Flags)
   : Client(Client)
-  , Port(jack_port_register(Client->JACK->Client, Name.c_str(), Type.c_str(), Flags, 0))
+  , Port(jack_port_register(Client.JACK->Client, Name.data(), Type.data(), Flags, 0))
   {
     if (Port == nullptr) {
       throw std::runtime_error("Failed to register port");
     }
   }
-  ~Implementation() { jack_port_unregister(Client->JACK->Client, Port); }
+  ~Implementation() { jack_port_unregister(Client.JACK->Client, Port); }
 };
 
 namespace JACK {
 
-Port::Port(Client *C, std::string N, std::string T, bool IsInput)
+Port::Port(Client &C, std::string_view N, std::string_view T, bool IsInput)
 : JACK(std::make_unique<Implementation>(C, N, T, static_cast<JackPortFlags>(IsInput ? JackPortIsInput : JackPortIsOutput)))
 {}
 
@@ -111,19 +111,33 @@ Port &Port::operator=(Port &&) noexcept = default;
 
 Port::~Port() = default;
 
-AudioIn::AudioIn(JACK::Client *Client, std::string Name)
-: Port(Client, std::move(Name), JACK_DEFAULT_AUDIO_TYPE, true)
+std::string Port::name() const {
+  return jack_port_name(JACK->Port);
+}
+
+std::size_t Port::connections() const {
+  return jack_port_connected(JACK->Port);
+}
+
+AudioIn::AudioIn(JACK::Client &Client, std::string_view Name)
+: Port(Client, Name, JACK_DEFAULT_AUDIO_TYPE, true)
 {}
 
-gsl::span<float> AudioIn::buffer(std::int32_t FrameCount) {
+gsl::span<float const> AudioIn::buffer(std::int32_t FrameCount) {
   return {
     static_cast<float *>(jack_port_get_buffer(JACK->Port, FrameCount)),
     FrameCount
   };
 }
     
-AudioOut::AudioOut(JACK::Client *Client, std::string Name)
-: Port(Client, std::move(Name), JACK_DEFAULT_AUDIO_TYPE, false)
+std::tuple<std::uint32_t, std::uint32_t> AudioIn::latencyRange() const {
+  jack_latency_range_t Range{};
+  jack_port_get_latency_range(JACK->Port, JackCaptureLatency, &Range);
+  return { Range.min, Range.max };
+}
+
+AudioOut::AudioOut(JACK::Client &Client, std::string_view Name)
+: Port(Client, Name, JACK_DEFAULT_AUDIO_TYPE, false)
 {}
 
 gsl::span<float> AudioOut::buffer(std::int32_t FrameCount) {
@@ -133,8 +147,26 @@ gsl::span<float> AudioOut::buffer(std::int32_t FrameCount) {
   };
 }
 
+std::tuple<std::uint32_t, std::uint32_t> AudioOut::latencyRange() const {
+  jack_latency_range_t Range{};
+  jack_port_get_latency_range(JACK->Port, JackPlaybackLatency, &Range);
+  return { Range.min, Range.max };
+}
+
 void MIDIBuffer::clear() {
   jack_midi_clear_buffer(Buffer);
+}
+
+MIDIBuffer::Index &MIDIBuffer::Index::operator=(MIDI::SongPositionPointer SPP) {
+  std::copy(SPP.begin(), SPP.end(), Buffer.reserve(Offset, SPP.size()).begin());
+    
+  return *this;
+}
+
+MIDIBuffer::Index &MIDIBuffer::Index::operator=(MIDI::SystemRealTimeMessage Message) {
+  Buffer.reserve<1>(Offset)[0] = static_cast<std::byte>(Message);
+            
+  return *this;
 }
 
 gsl::span<std::byte> MIDIBuffer::reserve (
@@ -147,11 +179,19 @@ gsl::span<std::byte> MIDIBuffer::reserve (
   };
 }
 
-MIDIOut::MIDIOut(JACK::Client *Client, std::string Name)
-: Port(Client, std::move(Name), JACK_DEFAULT_MIDI_TYPE, false)
+MIDIOut::MIDIOut(JACK::Client &Client, std::string_view Name)
+: Port(Client, Name, JACK_DEFAULT_MIDI_TYPE, false)
 {}
 
 MIDIBuffer MIDIOut::buffer(std::uint32_t FrameCount) {
+  return { jack_port_get_buffer(JACK->Port, FrameCount), FrameCount };
+}
+
+MIDIIn::MIDIIn(JACK::Client &Client, std::string_view Name)
+: Port(Client, Name, JACK_DEFAULT_MIDI_TYPE, false)
+{}
+
+MIDIBuffer const MIDIIn::buffer(std::uint32_t FrameCount) {
   return { jack_port_get_buffer(JACK->Port, FrameCount), FrameCount };
 }
 
@@ -179,16 +219,20 @@ bool Client::isRealtime() const {
   return jack_is_realtime(JACK->Client) == 1;
 }
 
-AudioIn Client::createAudioIn(std::string Name) {
-  return { this, std::move(Name) };
+AudioIn Client::createAudioIn(std::string_view Name) {
+  return { *this, Name };
 }
 
-AudioOut Client::createAudioOut(std::string Name) {
-  return { this, std::move(Name) };
+AudioOut Client::createAudioOut(std::string_view Name) {
+  return { *this, Name };
 }
 
-MIDIOut Client::createMIDIOut(std::string Name) {
-  return { this, std::move(Name) };
+MIDIIn Client::createMIDIIn(std::string_view Name) {
+  return { *this, Name };
+}
+
+MIDIOut Client::createMIDIOut(std::string_view Name) {
+  return { *this, Name };
 }
 
 void Client::activate() {
@@ -202,6 +246,13 @@ void Client::deactivate() {
   auto Status = jack_deactivate(JACK->Client);
   if (Status != 0) {
     throw std::system_error(Status, std::generic_category());
+  }
+}
+
+void Client::connect(std::string_view From, std::string_view To) {
+  auto Result = jack_connect(JACK->Client, From.data(), To.data());
+  if (Result != 0 && Result != EEXIST) {
+    throw std::runtime_error("JACK: Unable to connect port");
   }
 }
 

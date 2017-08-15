@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include <experimental/propagate_const>
 
@@ -18,7 +19,7 @@ class Port {
 protected:
   struct Implementation;
   std::experimental::propagate_const<std::unique_ptr<Implementation>> JACK;
-  Port(Client *, std::string Name, std::string Type, bool IsInput);
+  Port(Client &, std::string_view N, std::string_view T, bool IsInput);
 
 public:
   ~Port();
@@ -26,35 +27,45 @@ public:
   Port &operator=(Port &&) noexcept;
   Port(const Port &) = delete;
   Port &operator=(const Port &) = delete;
+
+  std::string name() const;
+
+  std::size_t connections() const;
 };
 
 class AudioIn : public Port {
   friend class Client;
-  AudioIn(Client *, std::string Name);
+  AudioIn(Client &, std::string_view Name);
       
 public:
   using value_type = float;
 
-  gsl::span<value_type> buffer(std::int32_t Frames);
+  gsl::span<value_type const> buffer(std::int32_t FrameCount);
+
+  std::tuple<std::uint32_t, std::uint32_t> latencyRange() const;
 };
 
 class AudioOut : public Port {
   friend class Client;
-  AudioOut(Client *, std::string Name);
+  AudioOut(Client &, std::string_view Name);
 
 public:
   using value_type = float;
 
-  gsl::span<value_type> buffer(std::int32_t Frames);
+  gsl::span<value_type> buffer(std::int32_t FrameCount);
+
+  std::tuple<std::uint32_t, std::uint32_t> latencyRange() const;
 };
 
 class MIDIBuffer {
   void *Buffer;
   std::uint32_t const Frames;
   friend class MIDIOut;
-  
+  friend class MIDIIn;
+
   MIDIBuffer(void *Buffer, std::uint32_t FrameCount) : Buffer(Buffer), Frames(FrameCount) {
     Expects(Buffer != nullptr);
+    Expects(FrameCount > 0);
   }
 
 public:
@@ -66,11 +77,8 @@ public:
     Index(MIDIBuffer &Buffer, std::uint32_t Offset)
     : Buffer(Buffer), Offset(Offset) {}
   public:
-    Index &operator=(MIDI::SystemRealTimeMessage Message) {
-      Buffer.reserve<1>(Offset)[0] = static_cast<std::byte>(Message);
-
-      return *this;
-    }
+    Index &operator=(MIDI::SongPositionPointer);
+    Index &operator=(MIDI::SystemRealTimeMessage);
   };
   void clear();
   gsl::span<std::byte> reserve(std::uint32_t FrameOffset, std::uint32_t Size);
@@ -86,12 +94,18 @@ public:
 
 class MIDIOut : public Port {
   friend class Client;
-  MIDIOut(Client *, std::string Name);
+  MIDIOut(Client &, std::string_view Name);
       
 public:
-  using value_type = std::byte;
-        
   MIDIBuffer buffer(std::uint32_t FrameCount);
+};
+
+class MIDIIn : public Port {
+  friend class Client;
+  MIDIIn(Client &, std::string_view Name);
+      
+public:
+  MIDIBuffer const buffer(std::uint32_t FrameCount);
 };
 
 class Client {
@@ -110,13 +124,24 @@ public:
   unsigned int sampleRate() const;
   bool isRealtime() const;
 
-  AudioIn createAudioIn(std::string Name);
-  AudioOut createAudioOut(std::string Name);
-  MIDIOut createMIDIOut(std::string Name);
+  AudioIn createAudioIn(std::string_view Name);
+  AudioOut createAudioOut(std::string_view Name);
+  MIDIIn createMIDIIn(std::string_view Name);
+  MIDIOut createMIDIOut(std::string_view Name);
 
   void activate();
   void deactivate();
 
+  void connect(std::string_view From, std::string_view To);
+  void connect(std::string_view From, AudioIn const &To) {
+    return connect(From, To.name());
+  }
+  void connect(AudioOut const &From, std::string_view To) {
+    return connect(From.name(), To);
+  }
+  void connect(MIDIOut const &From, std::string_view To) {
+    return connect(From.name(), To);
+  }
   virtual int process(std::uint32_t nframes) = 0;
 };
 
