@@ -1,24 +1,21 @@
 #if !defined(BrlCV_JACK_HPP)
 #define BrlCV_JACK_HPP
 
-#include <memory>
 #include <string>
 #include <string_view>
-
-#include <experimental/propagate_const>
+#include <variant>
 
 #include <gsl/gsl>
 
+#include <impl_ptr.hpp>
 #include <midi.hpp>
 
 namespace JACK {
 
 class Client;
 
-class Port {
+class Port : protected BrlCV::impl_ptr<Port>::unique {
 protected:
-  struct Implementation;
-  std::experimental::propagate_const<std::unique_ptr<Implementation>> JACK;
   Port(Client &, std::string_view N, std::string_view T, bool IsInput);
 
 public:
@@ -63,9 +60,14 @@ class MIDIBuffer {
   friend class MIDIOut;
   friend class MIDIIn;
 
-  MIDIBuffer(void *Buffer, std::uint32_t FrameCount) : Buffer(Buffer), Frames(FrameCount) {
+  MIDIBuffer(void *Buffer, std::uint32_t FrameCount,
+             void (MIDIBuffer::*Prepare)() = nullptr)
+  : Buffer(Buffer), Frames(FrameCount) {
     Expects(Buffer != nullptr);
     Expects(FrameCount > 0);
+    if (Prepare != nullptr) {
+      (this->*Prepare)();
+    }
   }
 
 public:
@@ -77,7 +79,7 @@ public:
     Index(MIDIBuffer &Buffer, std::uint32_t Offset)
     : Buffer(Buffer), Offset(Offset) {}
   public:
-    Index &operator=(MIDI::SongPositionPointer);
+    Index &operator=(MIDI::SongPositionPointer const &);
     Index &operator=(MIDI::SystemRealTimeMessage);
   };
   void clear();
@@ -90,6 +92,39 @@ public:
     Expects(FrameOffset < Frames);
     return { *this, FrameOffset };
   }
+  class Iterator {
+  public:
+    using value_type = std::tuple<std::uint32_t, std::variant<
+      MIDI::SongPositionPointer, MIDI::SystemRealTimeMessage, gsl::span<std::byte>
+    >>;
+  private:
+    MIDIBuffer const &Buffer;
+    std::uint32_t Offset, Size;
+    mutable std::optional<value_type> CurrentEvent;
+    friend class MIDIBuffer;
+
+    Iterator(MIDIBuffer const &Buffer, std::uint32_t Offset, std::uint32_t Size)
+    : Buffer(Buffer), Offset(Offset), Size(Size) {}
+  public:
+    using iterator_category = std::forward_iterator_tag;
+    using reference = value_type&;
+    using const_reference = value_type const &;
+    using pointer = value_type*;
+    using const_pointer = value_type const *;
+
+    friend bool operator==(Iterator const &Lhs, Iterator const &Rhs) {
+      return (Lhs.Offset == Rhs.Offset) && (Lhs.Size == Rhs.Size);
+    }
+    friend bool operator!=(Iterator const &Lhs, Iterator const &Rhs) {
+      return Lhs.Offset != Rhs.Offset || Lhs.Size != Rhs.Size;
+    }
+    Iterator &operator++() { Offset += 1; return *this; }
+    Iterator const operator++(int) { auto Result = *this; ++*this; return Result; }
+    const_reference operator*() const;
+    const_pointer operator->() const { return &**this; }
+  };
+  Iterator begin() const;
+  Iterator end() const;
 };
 
 class MIDIOut : public Port {
@@ -108,11 +143,8 @@ public:
   MIDIBuffer const buffer(std::uint32_t FrameCount);
 };
 
-class Client {
-  struct Implementation;
-  std::experimental::propagate_const<std::unique_ptr<Implementation>> JACK;
-  friend class Port;
-
+class Client : BrlCV::impl_ptr<Client>::unique {
+  friend class BrlCV::impl_ptr<JACK::Port>::implementation;
 public:
   explicit Client(std::string Name);
   Client(Client &&) noexcept;
@@ -142,7 +174,7 @@ public:
   void connect(MIDIOut const &From, std::string_view To) {
     return connect(From.name(), To);
   }
-  virtual int process(std::uint32_t nframes) = 0;
+  virtual int process(int FrameCount) = 0;
 };
 
 } // namespace JACK

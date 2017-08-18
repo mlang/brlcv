@@ -8,24 +8,43 @@
 
 namespace MIDI {
 
-class SongPositionPointer : public gsl::span<std::byte const, 3> {
+class SongPositionPointer {
   std::array<std::byte, 3> Storage;
 public:
-  explicit SongPositionPointer(std::uint16_t Position)
+  explicit SongPositionPointer(int Position)
   : Storage { static_cast<std::byte>(0XF2)
             , static_cast<std::byte>(Position & 0X7F)
             , static_cast<std::byte>((Position >> 7) & 0X7F)
             }
-  , gsl::span<std::byte const, 3> { Storage }
   {
+    Expects(Position >= 0);
     Expects(Position <= 0b1111111'1111111);
+    Ensures(*this == Position);
   }
-  SongPositionPointer &operator=(std::uint16_t Position)
+  explicit SongPositionPointer(gsl::span<std::byte> Span) : Storage() {
+    Expects(Span.size() == 3);
+    Expects(Span[0] == std::byte(0XF2));
+    Expects(((Span[1] & std::byte(0X80)) | (Span[2] & std::byte(0X80))) == std::byte(0));
+    std::copy(Span.begin(), Span.end(), Storage.begin());
+  }
+  SongPositionPointer &operator=(int Position)
   {
-    Expects(Position <= 0b1111111'1111111);
+    Expects(Position >= 0);
+    Expects(Position <= (1 << 7*2) - 1);
     Storage[1] = static_cast<std::byte>(Position & 0X7F);
     Storage[2] = static_cast<std::byte>((Position >> 7) & 0X7F);
+
+    Ensures(*this == Position);
+
+    return *this;
   }
+  operator int() const noexcept {
+    return static_cast<int>(Storage[2]) << 7
+         | static_cast<int>(Storage[1]);
+  }
+  auto begin() const { return Storage.cbegin(); }
+  auto end() const { return Storage.end(); }
+  auto size() const noexcept { return Storage.size(); }
 };
 
 enum class SystemRealTimeMessage {

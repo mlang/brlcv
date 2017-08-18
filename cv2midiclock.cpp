@@ -1,4 +1,5 @@
 #include <chrono>
+#include <optional>
 #include <thread>
 
 #include <boost/lockfree/spsc_queue.hpp>
@@ -6,7 +7,37 @@
 #include <jack.hpp>
 #include <dsp.hpp>
 
-boost::lockfree::spsc_queue<std::size_t, boost::lockfree::capacity<8>> FPP;
+class PulseTracker {
+  std::optional<std::uint32_t> FramesSinceLastPulse = std::nullopt;
+  BrlCV::FairSegmentation<24> MIDIClockFrames;
+  JACK::MIDIOut &MIDIOut;
+
+public:
+  PulseTracker(JACK::MIDIOut &MIDIOut) : MIDIOut(MIDIOut) {}
+
+  class Guard {
+    PulseTracker &Tracker;
+    std::uint32_t const FrameCount;
+    std::optional<std::uint32_t> Pulse = std::nullopt;
+  public:
+    Guard(PulseTracker &Tracker, std::uint32_t FrameCount)
+    : Tracker(Tracker), FrameCount(FrameCount) {}
+    void operator()(std::uint32_t Offset) {
+      Expects(Offset < FrameCount);
+      *Pulse = Offset;
+    }
+    ~Guard() {
+      auto Buffer = Tracker.MIDIOut.buffer(FrameCount);
+      Buffer.clear();
+      if (Tracker.FramesSinceLastPulse && !Pulse) {
+        *Tracker.FramesSinceLastPulse += FrameCount;
+      }
+    }
+  };
+  [[nodiscard]] Guard operator()(std::uint32_t FrameCount) {
+    return { *this, FrameCount };
+  };
+};
 
 class EdgeDetect : public JACK::Client {
   JACK::AudioIn CVIn;
@@ -16,22 +47,38 @@ class EdgeDetect : public JACK::Client {
   std::size_t FramesSinceLastPulse = 0, FramesPerPulse = 0, FramesUntilNextMIDIClock = 0, MIDIClockPulse = 0;
   float const Threshold;
   BrlCV::FairSegmentation<24> MIDIClockFrameCount;
+  boost::lockfree::spsc_queue<std::size_t, boost::lockfree::capacity<8>> FPP;
+  PulseTracker CVPulse;
 
-  public:
+public:
   EdgeDetect(float Threshold = 0.2) : JACK::Client("EdgeDetect")
   , CVIn(createAudioIn("In"))
   , MIDIOut(createMIDIOut("Out"))
   , FastAverage(0.25), SlowAverage(0.0625)
   , FramesUntilNextMIDIClock(0)
-                                      , Threshold(Threshold)
-  { Expects(Threshold > 0); }
+  , Threshold(Threshold)
+  , CVPulse(MIDIOut)
+  {
+    Expects(Threshold > 0);
+    activate();
+  }
 
+  void connectCVIn(std::string Name = "system:capture_1") {
+    connect(Name, CVIn);
+  }
+  void connectMIDIOut(std::string Name = "alsa_midi:Hammerfall DSP HDSP MIDI 1 (in)") {
+    connect(MIDIOut, Name);
+  }
+  std::size_t latency() const {
+    auto CaptureLatency = CVIn.latencyRange();
+    return std::get<1>(CaptureLatency);
+  }
   int process(std::uint32_t FrameCount) override {
+    auto Pulse = CVPulse(FrameCount);
     auto MIDIBuffer = MIDIOut.buffer(FrameCount);
     int PulseOffset = -1;
     std::size_t Frame = 0;
 
-    MIDIBuffer.clear();
     for (auto Sample : CVIn.buffer(FrameCount)) {
       auto Difference = FastAverage(Sample) - SlowAverage(Sample);
 
@@ -64,22 +111,30 @@ class EdgeDetect : public JACK::Client {
 
     return 0;
   }
+
+  std::optional<float> bpm() {
+    std::size_t FramesPerPulse;
+    if (FPP.pop(FramesPerPulse)) {
+      return static_cast<float>(sampleRate() * 60) / FramesPerPulse;
+    }
+    return std::nullopt;
+  }
 };
 
 using namespace std::literals::chrono_literals;
 
 int main() {
-  EdgeDetect App;
+  EdgeDetect Clock;
   std::string const Chars = "\\|/-";
   unsigned int CurrentChar = 0;
-  App.activate();
+  Clock.connectCVIn();
+  Clock.connectMIDIOut();
+  std::cout << Clock.latency() << std::endl;
   while (true) {
-    std::size_t FramesPerPulse;
-    while (FPP.pop(FramesPerPulse)) {
-      auto BPM = static_cast<float>(App.sampleRate()) / FramesPerPulse * 60;
-      std::cout << BPM << " BPM " << Chars[CurrentChar++] << "        \r";
+    if (auto BPM = Clock.bpm(); BPM) {
+      std::cout << *BPM << " BPM " << Chars[CurrentChar++] << "        \r";
       std::flush(std::cout);
-      if (CurrentChar == Chars.size()) CurrentChar = 0;
+      CurrentChar %= Chars.size();
     }
     std::this_thread::sleep_for(5ms);
   }

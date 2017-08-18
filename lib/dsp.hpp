@@ -29,14 +29,16 @@ template<typename T> using EWMA = ExponentiallyWeightedMovingAverage<T>;
 
 template<std::size_t N>
 class FairSegmentation {
-  std::size_t SegmentSize;
+  std::size_t SegmentSize{0};
   std::bitset<N> Set;
 
 public:
-  FairSegmentation() : SegmentSize(0), Set(0) {}
-  FairSegmentation(std::size_t Size) : SegmentSize(Size / N), Set(0) {
+  FairSegmentation() : Set(0) {}
+  explicit FairSegmentation(std::size_t Size) : SegmentSize(Size / N), Set(0) {
     auto const R = Size % N;
-    for (auto I = 0; I < R; ++I) Set.set(N*I/R);
+    for (auto I = 0; I < R; ++I) {
+      Set.set(N*I/R);
+    }
     Ensures(Set.count() == R);
   }
 
@@ -44,12 +46,14 @@ public:
     SegmentSize = Size / N;
     Set.reset();
     auto const R = Size % N;
-    for (auto I = 0; I < R; ++I) Set.set(N*I/R);
+    for (auto I = 0; I < R; ++I) {
+      Set.set(N*I/R);
+    }
     Ensures(Set.count() == R);
   }
 
-  constexpr bool empty() const { return N == 0; }
-  constexpr std::size_t size() const { return N; }
+  constexpr bool empty() const noexcept { return N == 0; }
+  constexpr std::size_t size() const noexcept { return N; }
   
   std::size_t operator[](std::size_t Position) const {
     Expects(Position < N);
